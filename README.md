@@ -5,7 +5,6 @@
 [![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](https://github.com/python/mypy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-E, w, f, i, b, c4, up, -e203
 ## Overview
 An LLM-based application to design and maintain PERT charts using LLM interfaces to support effective project management
 
