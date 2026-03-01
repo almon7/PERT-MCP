@@ -3,16 +3,22 @@ FROM python:3.13-slim-bookworm
 # Avoid writing .pyc files to disk
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Ensure stdout and stderr are unbuffered
+# Ensure that the Python output is sent straight to terminal (e.g., for logging)
 ENV PYTHONUNBUFFERED=1
+
+# Copy uv files from the cache instead of linking so as not to cause issues with bind mounts
+ENV UV_LINK_MODE=copy
+
+# Compile Python files to bytecode when installing dependencies. Improves startup time at the cost of installation time.
+ENV UV_COMPILE_BYTECODE=1
+
+# Install uv binaries from the official image
+COPY --from=ghcr.io/astral-sh/uv:0.9.2 /uv /bin/
 
 # Update system dependencies
 RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Install uv and uvx from the specified image
-COPY --from=ghcr.io/astral-sh/uv:0.8.24 /uv /uvx /bin/
 
 # Create a non-root user and switch to it
 ARG UID
@@ -22,18 +28,34 @@ RUN groupadd -g ${GID} nonroot && \
 USER nonroot
 
 # Set working directory
-WORKDIR /home/nonroot/app/src
+WORKDIR /app/src
+
+# Install dependencies but not the project itself to leverage Docker layer caching.
+# --locked ensures that uv.lock is up to date with pyproject.toml;
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project
 
 # Copy and install Python dependencies using uv
-COPY --chown=nonroot:nonroot ./pyproject.toml ../pyproject.toml
-COPY --chown=nonroot:nonroot ./uv.lock ../uv.lock
-RUN uv sync --frozen
+COPY --chown=nonroot:nonroot pyproject.toml uv.lock /app/
 
-# Copy application source code, overwriting previous documents (pyproject.toml, uv.lock)
-COPY --chown=nonroot:nonroot src/ src/
+# Copy the application source code
+COPY --chown=nonroot:nonroot src/ /app/src/
 
-# Set working directory to the application source code
-WORKDIR /home/nonroot/app/src
+# Install the project, caching uv files
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked
+
+# OPTIONAL: Activate the uv virtual environment by placing its directory at the front of the PATH
+# This makes it so that you don't have to prefix commands with `uv run ...`
+# ENV PATH="/app/.venv/bin:$PATH"
+
+# OPTIONAL: Add /app/src to PYTHONPATH
+# This allows running code from /app/src without the -m flag
+# ENV PYTHONPATH=""
+# ENV PYTHONPATH="/app/src:${PYTHONPATH}"
+
 
 # Run the application with auto-reload for development
-CMD [ "uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
+# CMD [ "/usr/bin/bash", "/app/src/scripts/entrypoint.sh" ]

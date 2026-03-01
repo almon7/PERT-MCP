@@ -1,13 +1,12 @@
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from loguru import logger
 
-app = FastAPI()
+from app.settings import settings
 
 
-# Redirect root to docs
-@app.get("/")
-async def redirect_root() -> RedirectResponse:
-    """
-    Redirect the root path to the documentation page
-    """
-    return RedirectResponse(url="/docs")
+def main():
+    logger.info("Hello, World!")
+    logger.info(f"Sample Env Var: {settings.sample_env_var}")
+
+
+if __name__ == "__main__":
+    main()
